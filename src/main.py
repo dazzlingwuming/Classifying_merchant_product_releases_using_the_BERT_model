@@ -1,6 +1,7 @@
 import sys
 
 from preprocess.data_load import get_dataloader, DatasetType
+from runner.evaluate import run_evaluate
 from runner.train import train
 
 # from transformers import DataProcessor
@@ -20,8 +21,12 @@ def f1():
 def f2():
     train()
 
+def f3():
+    run_evaluate()
+
 if __name__ == "__main__":
     # load_data_processor()
     # print(sys.path)
     # f1()
-    f2()
+    # f2()
+    f3()
