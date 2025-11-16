@@ -19,7 +19,8 @@ PRETRAINED_MODELS_DIR = ROOT_DIR / 'pretrained'  # 预训练模型目录：存�
 LOGS_DIR = ROOT_DIR / 'logs'                    # 日志目录：存放项目运行日志（如训练日志、错误日志）
 MODELS_DIR = ROOT_DIR / 'models'                # 模型目录：存放训练完成的模型文件（如 .pkl、.h5、.pt 等）
 OUTPUTS_DIR = ROOT_DIR / 'outputs'              # 输出目录：存放项目生成的结果文件（如报告、可视化图表）
-Best_Model_PATH = OUTPUTS_DIR / 'best_model.pth'    # 最佳模型路径：存放训练过程中表现最好的模型文件
+Best_Model_PATH = OUTPUTS_DIR / 'train_best_model.pth'    # 最佳模型路径：存放训练过程中表现最好的模型文件
+Best_Model_EVAL_PATH = OUTPUTS_DIR / 'eval_best_model.pth'    # 最佳评估模型路径：存放评估过程中表现最好的模型文件
 CONFIG_DIR = ROOT_DIR / 'config'                # 配置目录：存放项目配置文件（如 .yaml、.json 格式的参数配置）
 
 #模型相关内部参数
