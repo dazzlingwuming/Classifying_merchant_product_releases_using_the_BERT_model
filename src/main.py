@@ -28,5 +28,5 @@ if __name__ == "__main__":
     # load_data_processor()
     # print(sys.path)
     # f1()
-    # f2()
-    f3()
+    f2()
+    # f3()
