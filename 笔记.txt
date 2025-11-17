@@ -1,21 +1,51 @@
-项目：基于bert模型商品标签分类
-    1.模型结构：
-        - 使用预训练的BERT模型作为基础
-        - 在BERT的输出上添加全连接层进行分类
-        （本来想选择多层级全连接，每一层的全连接得到每一层的层级类别，但考虑到数据集只找到单层级分类，最终选择了全连接层直接输出叶子层类别）
-        - 使用softmax激活函数进行多分类任务
-    2.数据集预处理：获取地址 ：https://aistudio.baidu.com/datasetdetail/135131
-        -分词：使用BERT自带的分词器进行分词
-        -padding：将输入序列pad到相同长度
-        -标签编码：将商品标签转换为数值编码
-    3.模型训练：
-        - 损失函数：交叉熵损失函数
-        - 优化器：Adam优化器
-        - 学习率调度：使用学习率衰减策略
-        - 训练轮数：根据验证集表现调整
-    4.模型评估：
-        - 使用准确率、精确率、召回率和F1-score进行评估
-        - 使用混淆矩阵分析分类效果
-    5.模型保存与加载：
-        - 使用PyTorch的torch.save()和torch.load()进行模型保存与加载
-    6.代码实现：
+项目：基于 BERT 模型的商品标签分类系统
+    模型结构：
+        基础模型：采用预训练的 bert-base-chinese 模型作为特征提取器（路径：pretrained/bert-base-chinese）
+        分类头设计：在 BERT 输出的 [CLS] 标记隐藏状态（维度为 BERT 的 hidden_size）后连接全连接层，直接输出叶子节点类别（类别数量由 config_model ["Num_classes"] 配置）
+        激活函数：使用 softmax 激活函数完成多分类映射
+        参数控制：支持配置是否冻结 BERT 参数（通过 config_model ["freeze_bert"] 控制，冻结时仅训练分类头）
+        模型类实现：src/model/bert_classifier.py 中的 BERTClassifier 类，前向传播接收 input_ids 和 attention_mask，返回分类 logits
+    数据集预处理：
+        数据来源：百度 AI Studio 商品标题分类数据集（https://aistudio.baidu.com/datasetdetail/135131）
+        数据格式：原始数据为 label\ttext_a（制表符分隔），包含训练集（train.txt）、验证集（valid.txt）、测试集（test.txt），存储于 data/raw/
+    预处理步骤：
+        数据清洗：过滤 text_a 或 label 为空的样本
+        标签处理：将品类标签标准化为 ClassLabel 类型（数值编码）
+        文本分词：使用 BERT 自带分词器生成 input_ids 和 attention_mask
+        序列对齐：对文本序列进行 padding，统一长度（通过 configs.MAX_SEQ_LENGTH 配置，默认 64）
+        结果保存：预处理后的数据存储于 data/processed/，供模型直接加载
+        代码实现：src/preprocess/ 目录下脚本，通过 get_dataloader 函数按数据集类型（Train/Validation/Test）加载数据，支持指定评估批次（默认 30 批，加快评估速度）
+    模型训练：
+        训练环境：支持 GPU（cuda）和 CPU 设备自动选择，适配不同硬件条件
+    核心组件：
+        损失函数：交叉熵损失函数（torch.nn.CrossEntropyLoss）
+        优化器：Adam 优化器（学习率由 config_train ["learning_rate"] 配置，BERT 常用 2e-5）
+        学习率策略：支持学习率衰减（具体策略在配置文件中定义）
+        混合精度训练：通过 torch.amp.GradScaler 启用 FP16 混合精度，节省 50% 显存并提升 2-3 倍训练速度
+    训练管控：
+        早停机制：监控验证集 F1-score，连续 patience=2 轮未提升时停止训练，恢复最优模型权重
+        断点续训：检测到 models/checkpoint.pt 时，自动恢复模型参数、优化器状态和训练轮次
+        检查点机制：每轮训练后保存检查点，最多保留 3 个最新检查点（避免磁盘占用过大），自动记录模型权重、优化器状态、训练轮次和性能指标
+        日志记录：使用 TensorBoard 记录训练过程，日志存储于 logs/[时间戳]/
+        模型保存：训练中自动保存最优模型（基于验证集 F1-score）至 models/model.pt，同时保存断点文件至 models/checkpoint.pt
+        代码实现：src/runner/train.py 中的 train 函数，包含训练循环、评估回调和模型保存逻辑
+    模型评估：
+        评估指标：准确率（Accuracy）、精确率（Precision）、召回率（Recall）、F1-score（核心指标），均采用 macro 平均（适配多分类场景）
+        辅助分析：通过混淆矩阵可视化分类错误分布
+    评估模式：
+        快速评估：指定评估批次（默认 30 批），减少评估耗时
+        完整评估：评估全部测试集，获取最终性能指标
+        评估数据：基于测试集（data/raw/test.txt 预处理后的数据）进行评估
+        代码实现：src/runner/evaluate.py 中的 run_evaluate 函数，支持传入 eval_batches 参数控制评估批次，输出多维度评估结果
+    模型保存与加载：
+        保存方式：使用 torch.save () 保存模型状态字典（state_dict），包含模型参数、优化器状态、训练轮次和最佳指标
+        加载方式：通过 torch.load () 从 models/model.pt（最优模型）或 models/checkpoint.pt（断点）加载，支持跨设备映射（map_location），解决 CUDA/CPU 设备兼容问题
+        应用场景：训练断点恢复、预测部署、评估复现、后续微调（Fine-tune）
+    代码实现与功能扩展：
+        项目入口：src/main.py，支持通过命令行参数执行数据预处理（process）、训练（train）、评估（evaluate）、交互式预测（predict）、API 服务（serve）
+    核心模块：
+        configuration/：存储路径配置（数据、模型、日志路径）和超参数（训练轮次、学习率、batch_size 等）
+        model/：模型定义（BERTClassifier）
+        preprocess/：数据加载与预处理逻辑（分词、padding、标签编码）
+        runner/：训练、评估、预测的核心流程
+        web/：flask 接口实现，提供 HTTP 预测服务（默认地址 0.0.0.0:8000，接口文档 /docs）
