@@ -1,6 +1,7 @@
 import time
 
 import torch
+from torch.distributed.pipeline.sync.checkpoint import checkpoint
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -94,9 +95,21 @@ def train():
     patience = 2
     patience_counter = 0
 
+    #检查点加载（如果有的话）
+    checkpoint_path = configs.MODELS_DIR / 'best_model_checkpoint.pth'
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch']
+        best_f1 = checkpoint['best_f1']
+        print(f"Resuming training from epoch {start_epoch} with best_f1 {best_f1:.4f}")
+    else:
+        start_epoch = 0
+        best_f1 = 0.0
+
     #训练循环
-    for epoch in range(configs.config_train["num_epochs"]):
-        best_f1 = 0
+    for epoch in range(start_epoch ,configs.config_train["num_epochs"]):
         model.train()
         best_loss = float('inf')
         one_epoch_train(model, train_dataload,loss_fn, optimizer, device, epoch, writer,best_loss ,scaler)
@@ -104,6 +117,13 @@ def train():
         if f1 > best_f1:
             best_f1 = f1
             torch.save(model.state_dict(), configs.Best_Model_EVAL_PATH)
+            checkpoint = {
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_f1': best_f1,
+            }
+            torch.save(checkpoint, configs.MODELS_DIR / 'best_model_checkpoint.pth')
             print(f"Model saved at epoch {epoch + 1} with best_f1 {best_f1:.4f}")
             patience_counter = 0
         else:
