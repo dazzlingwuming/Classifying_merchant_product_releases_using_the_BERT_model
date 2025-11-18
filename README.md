@@ -1,10 +1,5 @@
 # 智能商品分类预测系统（基于BERT）
 
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.x-orange)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
-
-
 ## 目录
 - [项目简介](#项目简介)
 - [核心能力](#核心能力)
@@ -15,166 +10,156 @@
 - [模型优化方案](#模型优化方案)
 - [部署与接口测试](#部署与接口测试)
 - [数据集说明](#数据集说明)
+- [扩展建议](#扩展建议)
 
 
 ## 项目简介
-在电商场景中，商品上架需手动填写品牌、品类等信息，流程繁琐且效率低下。本系统以**BERT预训练模型**为核心，通过分析商品标题文本，自动预测商品所属品类，帮助商家简化商品发布流程，提升上架效率，降低人工操作成本。
+本项目基于预训练BERT模型（`bert-base-chinese`）实现商品标题的自动标签分类，支持从商品标题文本中识别对应的品类标签，适用于电商平台商品上架、品类管理等场景。系统具备数据预处理、模型训练、评估、预测及API服务等完整功能，可根据实际业务需求灵活配置参数。
 
 
 ## 核心能力
-1. 自动品类预测：输入商品标题，实时输出精准分类结果
-2. 全链路数据处理：支持原始数据清洗、标签标准化、文本分词编码
-3. 多维度性能评估：覆盖准确率、精确率、召回率、F1分数四大核心指标
-4. 高效训练管控：集成早停、混合精度训练、断点续训，平衡训练效率与模型效果
-5. 灵活使用方式：提供命令行交互式预测与HTTP API服务两种部署形态
-6. 模块化架构：代码分层清晰，支持功能扩展与二次开发
+1. **数据处理**：支持对商品标题文本进行清洗、分词、标签编码及格式转换，生成模型可直接使用的输入数据
+2. **模型训练**：基于BERT构建分类模型，支持冻结/微调BERT参数、早停机制、断点续训及混合精度训练
+3. **性能评估**：提供准确率、精确率、召回率、F1-score等多维度指标，结合混淆矩阵分析分类效果
+4. **快速预测**：支持单条文本交互式预测及批量预测，提供HTTP API服务便于集成到业务系统
+5. **灵活配置**：通过配置文件统一管理路径、超参数等，支持自定义训练策略和模型参数
 
 
 ## 环境搭建
-### 1. 创建虚拟环境
-通过Conda创建独立环境，避免依赖冲突：
+### 依赖安装
 ```bash
-# 创建环境（指定Python 3.12）
-conda create -n product-classify python=3.12
-
-# 激活环境
-conda activate product-classify
+# 推荐Python 3.8+
+pip install -r requirements.txt
+# 核心依赖包括：
+# - torch>=1.10.0
+# - transformers>=4.10.0
+# - scikit-learn>=1.0.0
+# - fastapi>=0.68.0
+# - uvicorn>=0.15.0
 ```
 
-### 2. 安装依赖库
-先通过`nvidia-smi`查看本地CUDA版本，再安装对应版本的PyTorch及其他依赖：
-```bash
-# 安装PyTorch（以CUDA 12.6为例，需根据实际CUDA版本调整）
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
-
-# 安装其他核心依赖（transformers、FastAPI等）
-pip install transformers datasets scikit-learn tensorboard tqdm jupyter fastapi uvicorn
-```
+### 预训练模型准备
+项目默认使用`bert-base-chinese`预训练模型，已存放于`pretrained/bert-base-chinese/`目录，包含：
+- 模型权重文件（`pytorch_model.bin`）
+- 配置文件（`config.json`）
+- 词汇表（`vocab.txt`，支持中文、英文、数字及常见符号分词）
 
 
 ## 快速上手
-通过`src/main.py`入口脚本执行各类操作，命令格式统一为：
+### 1. 数据预处理
 ```bash
-python src/main.py [操作类型]
+python src/main.py --mode process
+# 功能：处理data/raw/下的train.txt/valid.txt/test.txt
+# 输出：生成data/processed/下的预处理数据（含分词后特征及标签编码）
 ```
 
-| 操作类型 | 执行命令                          | 功能描述                                  |
-|----------|-----------------------------------|-------------------------------------------|
-| 数据预处理 | `python src/main.py process`      | 清洗原始数据、处理标签、分词编码并保存    |
-| 模型训练   | `python src/main.py train`        | 启动模型训练，自动记录日志并保存最优模型  |
-| 模型评估   | `python src/main.py evaluate`     | 基于测试集计算模型性能指标                |
-| 交互式预测 | `python src/main.py predict`      | 命令行输入商品标题，实时查看分类结果      |
-| API服务部署 | `python src/main.py serve`        | 启动FastAPI服务，提供HTTP预测接口         |
+### 2. 模型训练
+```bash
+python src/main.py --mode train --config configs/train_config.json
+# 功能：基于训练集训练模型，使用验证集评估并保存最优模型
+# 输出：模型文件保存至models/（含最优模型model.pt和断点checkpoint.pt）
+```
+
+### 3. 模型评估
+```bash
+python src/main.py --mode evaluate --model_path models/model.pt
+# 功能：在测试集上评估模型性能
+# 输出：打印准确率、F1-score等指标，生成混淆矩阵可视化结果
+```
+
+### 4. 交互式预测
+```bash
+python src/main.py --mode predict --model_path models/model.pt
+# 功能：输入商品标题，返回预测的品类标签及置信度
+```
+
+### 5. 启动API服务
+```bash
+python src/main.py --mode serve --host 0.0.0.0 --port 8000
+# 功能：启动FastAPI服务，提供HTTP预测接口
+# 接口文档：访问http://localhost:8000/docs查看
+```
 
 
 ## 项目结构
 ```
-product-classify_bert/
-├── data/                # 数据存储目录
-│   ├── raw/             # 原始数据集（train.txt/test.txt/valid.txt）
-│   └── processed/       # 预处理后的数据（供模型直接使用）
-├── logs/                # TensorBoard训练日志（可视化训练过程）
-├── models/              # 模型文件目录
-│   ├── model.pt         # 最优模型权重
-│   └── checkpoint.pt    # 训练断点文件
-├── pretrained/          # 预训练模型目录（存放bert-base-chinese）
-└── src/                 # 核心源码目录
-    ├── configuration/   # 项目配置文件（路径、超参数等）
-    ├── model/           # 模型定义（BERT+分类头）
-    ├── preprocess/      # 数据预处理脚本（加载、清洗、分词）
-    ├── runner/          # 核心逻辑（训练、预测、评估）
-    ├── web/             # API服务代码（FastAPI路由、Schema）
-    └── main.py          # 程序入口（支持多操作类型）
+Classifying_merchant_product_releases_using_the_BERT_model/
+├── configs/               # 配置文件（训练参数、路径等）
+├── data/
+│   ├── raw/               # 原始数据（train.txt/valid.txt/test.txt）
+│   └── processed/         # 预处理后的数据
+├── logs/                  # TensorBoard日志
+├── models/                # 训练好的模型文件
+├── pretrained/            # 预训练模型（bert-base-chinese）
+├── src/
+│   ├── configuration/     # 配置加载工具
+│   ├── model/             # 模型定义（BERTClassifier）
+│   ├── preprocess/        # 数据预处理逻辑
+│   ├── runner/            # 训练、评估、预测流程
+│   ├── web/               # FastAPI服务实现
+│   └── main.py            # 项目入口
+├── requirements.txt       # 依赖清单
+└── README.md              # 项目说明
 ```
 
 
 ## 使用指南
-### 1. 数据预处理
-- 前提：将原始数据集（train.txt、test.txt、valid.txt）放入`data/raw/`目录，数据格式为`label\ttext_a`（制表符分隔）
-- 执行命令后，预处理后的数据会保存到`data/processed/`，自动完成：
-  - 过滤空值样本（text_a或label为None）
-  - 标签标准化（转换为ClassLabel类型）
-  - BERT分词（生成input_ids、attention_mask）
+### 配置文件说明
+核心配置文件（`configs/train_config.json`）关键参数：
+- `model_name_or_path`：预训练模型路径（默认`pretrained/bert-base-chinese`）
+- `num_classes`：分类类别数量（根据数据集自动生成）
+- `freeze_bert`：是否冻结BERT参数（`true`/`false`）
+- `epochs`：最大训练轮次
+- `batch_size`：批次大小
+- `learning_rate`：学习率
+- `patience`：早停机制耐心值（默认2）
 
-### 2. 模型训练
-- 训练过程中，TensorBoard日志会保存到`logs/[时间戳]/`，可通过以下命令查看：
-  ```bash
-  tensorboard --logdir=logs/[时间戳]
-  ```
-- 自动保存**最优模型**（基于验证集损失）到`models/model.pt`，支持断点续训（检测到`models/checkpoint.pt`时自动恢复）
-
-### 3. 交互式预测
-- 执行命令后，输入商品标题（如“240ML*15养元2430六个核桃”），系统会输出：
-  ```
-  预测类别ID: 2，类别名称: 酒饮冲调
-  ```
-- 输入`q`或`quit`可退出交互模式
-
-### 4. API服务部署
-- 服务启动后，默认监听`0.0.0.0:8000`，可通过以下地址访问接口文档：
-  ```
-  http://localhost:8000/docs
-  ```
-- 接口请求示例（POST `/predict`）：
-  ```json
-  {
-    "text": "911-267遥控车"
-  }
-  ```
-- 接口响应示例：
-  ```json
-  {
-    "text": "911-267遥控车",
-    "pred_id": 4,
-    "pred_label": "玩具"
-  }
-  ```
+### 数据格式要求
+原始数据（`data/raw/`）需为`label\ttext_a`格式（制表符分隔），示例：
+```
+家电  智能电饭煲5L大容量
+服装  纯棉短袖T恤男
+```
 
 
 ## 模型优化方案
-### 1. 早停机制（Early Stopping）
-- 当验证集损失连续2轮未下降时，自动终止训练，避免过拟合
-- 实时保存最优模型，无需手动干预
+1. **训练策略**：
+   - 采用交叉熵损失函数，结合Adam优化器
+   - 支持学习率衰减和混合精度训练（`torch.amp`）
+   - 早停机制避免过拟合（基于验证集F1-score）
 
-### 2. 混合精度训练（Mixed Precision）
-- 结合`torch.float16`（半精度）与`torch.float32`（单精度）：
-  - 卷积、矩阵乘法等操作使用半精度，提升速度、减少显存占用
-  - 归一化、损失计算等操作使用单精度，保证数值稳定性
-- 通过`torch.autocast`和`GradScaler`实现自动精度切换
-
-### 3. 断点续训（Checkpoint）
-- 训练过程中定期保存：
-  - 模型权重（model.state_dict()）
-  - 优化器状态（optimizer.state_dict()）
-  - 梯度缩放器状态（scaler.state_dict()）
-  - 当前训练轮次与早停计数器
-- 重启训练时，检测到`models/checkpoint.pt`会自动从断点恢复
+2. **性能提升**：
+   - 断点续训：支持从最近 checkpoint 恢复训练
+   - 设备自适应：自动选择GPU（cuda）或CPU训练
 
 
 ## 部署与接口测试
-1. 启动API服务：`python src/main.py serve`
-2. 访问`http://localhost:8000/docs`，在`/predict`接口页点击「Try it out」
-3. 输入商品标题，点击「Execute」，即可查看预测结果
-4. 支持通过Postman、curl等工具批量调用接口，适合集成到电商商品发布系统
+### API接口说明
+启动服务后提供以下接口：
+- `POST /predict`：单条预测，输入`{"text": "商品标题"}`，返回`{"label": "品类", "confidence": 0.95}`
+
+### 测试示例
+```bash
+# 单条预测
+curl -X POST "http://localhost:8000/predict" -H "Content-Type: application/json" -d '{"text": "无线蓝牙耳机"}'
+```
 
 
 ## 数据集说明
-- 来源：百度AI Studio商品标题分类数据集
-- 数据规模：包含训练集、验证集、测试集，覆盖多个电商品类
-- 数据格式：
-  | label（品类） | text_a（商品标题）                          |
-  |--------------|---------------------------------------------|
-  | 母婴         | 好奇心钻装纸尿裤L40片9-14kg                  |
-  | 蔬菜         | 基地玉米                                    |
-  | 酒饮冲调     | 240ML*15养元2430六个核桃                    |
-  | 玩具         | 911-267遥控车                                |
-  | 乳品         | 125ML*4伊利臻浓牛奶                          |
+- 来源：百度AI Studio商品标题分类数据集（https://aistudio.baidu.com/datasetdetail/135131）
+- 内容：包含训练集（train.txt）、验证集（valid.txt）、测试集（test.txt）
+- 预处理：过滤空值、标签标准化、BERT分词（最大长度由配置文件指定）
 
 
 ## 扩展建议
-1. 可增加品类置信度输出，帮助商家判断分类可靠性
-2. 支持批量预测接口，提升大批量商品处理效率
-3. 增加模型压缩（如量化、剪枝），降低部署资源占用
-4. 集成到电商后台，实现商品标题输入后自动填充品类
+1. 增加品类置信度阈值过滤，提升分类可靠性
+2. 优化批量预测接口，支持文件上传（如CSV）批量处理
+3. 模型压缩：通过量化（INT8）、剪枝减少模型体积和推理耗时
+4. 集成电商后台：对接商品发布系统，实现品类自动填充
+5. 多模型融合：结合文本特征与商品属性（如价格、图片）提升分类精度
+
 
 如需补充**LICENSE文件**、**Docker部署配置**或**超参数调优指南**，可随时告知！
+
+
+以上内容基于项目实际实现调整，重点修正了目录结构、功能描述与代码模块的对应关系，补充了接口细节和数据格式说明，如需进一步调整某个模块的描述，可以随时告诉我具体差异点~
