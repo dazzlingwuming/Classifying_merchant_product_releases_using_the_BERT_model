@@ -16,7 +16,6 @@
         结果保存：预处理后的数据存储于 data/processed/，供模型直接加载
         代码实现：src/preprocess/ 目录下脚本，通过 get_dataloader 函数按数据集类型（Train/Validation/Test）加载数据，支持指定评估批次（默认 30 批，加快评估速度）
     模型训练：
-        训练环境：支持 GPU（cuda）和 CPU 设备自动选择，适配不同硬件条件
     核心组件：
         损失函数：交叉熵损失函数（torch.nn.CrossEntropyLoss）
         优化器：Adam 优化器（学习率由 config_train ["learning_rate"] 配置，BERT 常用 2e-5）
